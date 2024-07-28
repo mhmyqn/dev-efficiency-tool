@@ -1,0 +1,20 @@
+@ExtendWith(MockitoExtension.class)
+public class ServiceTest {
+
+    @Mock
+    private DependService dependService;
+
+    private Service service;
+
+    @BeforeEach
+    public setUp() {
+        service = new Service(dependService);
+    }
+
+    @Test
+    void should_getValue_successfully() {
+        String value = service.getValue();
+        assertThat(value).isEqualTo("");
+    }
+
+}

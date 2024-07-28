@@ -1,7 +1,7 @@
 plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "1.9.24"
-    id("org.jetbrains.intellij") version "1.17.3"
+    id("org.jetbrains.intellij") version "1.17.4"
 }
 
 group = "com.mikan.intellij.plugin"
@@ -17,7 +17,7 @@ intellij {
     version.set("2023.2.6")
     type.set("IC") // Target IDE Platform
 
-    plugins.set(listOf(/* Plugin Dependencies */))
+    plugins.set(listOf("com.intellij.java"))
 }
 
 tasks {

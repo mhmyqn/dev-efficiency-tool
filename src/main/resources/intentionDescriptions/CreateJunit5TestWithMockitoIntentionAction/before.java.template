@@ -1,0 +1,15 @@
+public class Service {
+
+    private DependService dependService;
+
+    @Autowired
+    public Service(DependService dependService) {
+        this.dependService = dependService;
+    }
+
+    public String getValue() {
+        String value = dependService.doGetValue();
+        return value;
+    }
+
+}
