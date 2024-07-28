@@ -5,17 +5,16 @@
 
     <!-- Public plugin name should be written in Title Case.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-name -->
-    <name>Dev-efficiency-tool</name>
+    <name>Dev-Efficiency-Tool</name>
 
     <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
-    <vendor email="support@yourcompany.com" url="https://www.yourcompany.com">YourCompany</vendor>
+    <vendor email="mhmyqn@qq.com" url="https://www.alibaba-inc.com">Alibaba Group</vendor>
 
     <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
          Simple HTML elements (text formatting, paragraphs, and lists) can be added inside of <![CDATA[ ]]> tag.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
     <description><![CDATA[
-    Enter short description for your plugin here.<br>
-    <em>most HTML tags may be used</em>
+    Dev efficiency tools for developers in daily coding.
   ]]></description>
 
     <!-- Product and plugin compatibility requirements.
@@ -29,8 +28,40 @@
         <intentionAction>
             <language>JAVA</language> <!-- available in 2022.3 and later -->
             <className>com.mikan.intellij.plugin.intention.CreateJunit5TestWithMockitoIntentionAction</className>
-            <category>dev efficiency tool</category>
+            <category>Dev efficiency tool</category>
         </intentionAction>
+
+        <!--
+      Extend the IntelliJ Platform local inspection type and connect it to the implementation class in this plugin.
+      <localInspection> type element is applied within the scope of a file under edit.
+      It is preferred over <inspectionToolProvider>
+      @see com.intellij.codeInspection.InspectionProfileEntry
+
+      Attributes:
+        - language - inspection language ID
+        - shortName - not specified, will be computed by the underlying implementation classes
+        - bundle - name of the message bundle for the "key" attribute
+        - key - the key of the message to be shown in the Settings | Editor | Inspections panel
+        - groupPath - defines the outermost grouping for this inspection in
+            the Settings | Editor | Inspections panel. Not localized.
+        - groupBundle - the name of a message bundle file to translate groupKey
+            In this case, reuse an IntelliJ Platform bundle file from intellij.platform.resources.en
+        - groupKey - the key to use for translation subgroup name using groupBundle file.
+            In this case, reuse the IntelliJ Platform subcategory "Probable bugs"
+        - enabledByDefault - inspection state when the Inspections panel is created.
+        - level - the default level of error found by this inspection, e.g. INFO, ERROR, etc.
+            @see com.intellij.codeHighlighting.HighlightDisplayLevel
+        - implementationClass= the fully-qualified name of the inspection implementation class
+    -->
+        <localInspection language="JAVA"
+                         bundle="messages.InspectionBundle"
+                         key="inspection.field.injection.display.name"
+                         groupPath="Java"
+                         groupBundle="messages.InspectionsBundle"
+                         groupKey="group.names.probable.bugs"
+                         enabledByDefault="true"
+                         level="WARNING"
+                         implementationClass="com.mikan.intellij.plugin.inspection.FieldInjectionInspection"/>
     </extensions>
 
 </idea-plugin>
