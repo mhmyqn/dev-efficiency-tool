@@ -32,12 +32,12 @@
         </intentionAction>
 
         <!--
-      Extend the IntelliJ Platform local inspection type and connect it to the implementation class in this plugin.
-      <localInspection> type element is applied within the scope of a file under edit.
-      It is preferred over <inspectionToolProvider>
-      @see com.intellij.codeInspection.InspectionProfileEntry
+        Extend the IntelliJ Platform local inspection type and connect it to the implementation class in this plugin.
+        <localInspection> type element is applied within the scope of a file under edit.
+        It is preferred over <inspectionToolProvider>
+        @see com.intellij.codeInspection.InspectionProfileEntry
 
-      Attributes:
+        Attributes:
         - language - inspection language ID
         - shortName - not specified, will be computed by the underlying implementation classes
         - bundle - name of the message bundle for the "key" attribute
@@ -52,7 +52,7 @@
         - level - the default level of error found by this inspection, e.g. INFO, ERROR, etc.
             @see com.intellij.codeHighlighting.HighlightDisplayLevel
         - implementationClass= the fully-qualified name of the inspection implementation class
-    -->
+        -->
         <localInspection language="JAVA"
                          bundle="messages.InspectionBundle"
                          key="inspection.field.injection.display.name"
