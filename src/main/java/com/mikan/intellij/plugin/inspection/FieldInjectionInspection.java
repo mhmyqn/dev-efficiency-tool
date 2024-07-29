@@ -10,12 +10,16 @@ import com.intellij.codeInspection.ProblemHighlightType;
 import com.intellij.codeInspection.util.IntentionFamilyName;
 import com.intellij.codeInspection.util.IntentionName;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.psi.JavaPsiFacade;
 import com.intellij.psi.PsiAnnotation;
 import com.intellij.psi.PsiClass;
+import com.intellij.psi.PsiCodeBlock;
 import com.intellij.psi.PsiElementFactory;
 import com.intellij.psi.PsiField;
 import com.intellij.psi.PsiMethod;
+import com.intellij.psi.PsiModifier;
+import com.intellij.psi.PsiModifierList;
 import com.intellij.psi.util.PsiTreeUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -38,6 +42,13 @@ public class FieldInjectionInspection extends AbstractBaseJavaLocalInspectionToo
     @Override
     public ProblemDescriptor @Nullable [] checkField(@NotNull PsiField field, @NotNull InspectionManager manager,
         boolean isOnTheFly) {
+        boolean inTestSourceContent = ProjectRootManager.getInstance(manager.getProject())
+            .getFileIndex()
+            .isInTestSourceContent(field.getContainingFile().getVirtualFile());
+        if (inTestSourceContent) {
+            return null;
+        }
+
         PsiAnnotation[] annotations = field.getAnnotations();
         for (PsiAnnotation annotation : annotations) {
             if (ANNOTATIONS.contains(annotation.getQualifiedName())) {
@@ -69,6 +80,9 @@ public class FieldInjectionInspection extends AbstractBaseJavaLocalInspectionToo
         public void applyFix(@NotNull Project project, @NotNull ProblemDescriptor descriptor) {
             PsiField psiField = (PsiField)descriptor.getPsiElement();
             PsiClass containingClass = PsiTreeUtil.getParentOfType(psiField, PsiClass.class);
+            if (containingClass == null) {
+                return;
+            }
             PsiField[] fields = containingClass.getFields();
 
             String className = containingClass.getName();
@@ -76,8 +90,39 @@ public class FieldInjectionInspection extends AbstractBaseJavaLocalInspectionToo
 
             PsiElementFactory factory = JavaPsiFacade.getInstance(project).getElementFactory();
             PsiMethod constructor = factory.createConstructor(className);
-            // TODO 2024-07-28 16:50 Mikan
+            PsiCodeBlock constructorBody = constructor.getBody();
+            assert constructorBody != null;
+
+            for (PsiField field : fields) {
+                if (this.isStaticField(field)) {
+                    continue;
+                }
+                this.deleteAnnotation(field);
+                constructor.add(factory.createParameter(field.getName(), field.getType()));
+                constructorBody.add(factory.createStatementFromText(
+                    "this." + field.getName() + " = " + field.getName() + ";", null));
+            }
+
+            containingClass.add(constructor);
         }
+
+        private boolean isStaticField(PsiField field) {
+            PsiModifierList modifierList = field.getModifierList();
+            if (modifierList == null) {
+                return false;
+            }
+            return modifierList.hasExplicitModifier(PsiModifier.STATIC);
+        }
+
+        private void deleteAnnotation(PsiField field) {
+            PsiAnnotation[] annotations = field.getAnnotations();
+            for (PsiAnnotation annotation : annotations) {
+                if (ANNOTATIONS.contains(annotation.getQualifiedName())) {
+                    annotation.delete();
+                }
+            }
+        }
+
     }
 
 }
