@@ -19,6 +19,7 @@ import com.intellij.psi.PsiCodeBlock;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiElementFactory;
 import com.intellij.psi.PsiField;
+import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiImportList;
 import com.intellij.psi.PsiImportStatement;
 import com.intellij.psi.PsiJavaFile;
@@ -27,7 +28,7 @@ import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiModifier;
 import com.intellij.psi.PsiModifierList;
 import com.intellij.psi.PsiParameterList;
-import com.intellij.psi.PsiStatement;
+import com.intellij.psi.codeStyle.JavaCodeStyleManager;
 import com.intellij.psi.util.PsiTreeUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -119,11 +120,12 @@ public class FieldInjectionInspection extends AbstractBaseJavaLocalInspectionToo
                 this.addPrivateModifier(field, factory);
                 this.addFinalModifier(field, factory);
 
+                String fieldName = field.getName();
                 // 添加构造方法参数
-                parameterList.add(factory.createParameter(field.getName(), field.getType()));
+                parameterList.add(factory.createParameter(fieldName, field.getType()));
                 // 添加构造方法参数赋值
                 constructorBody.add(factory.createStatementFromText(
-                    "this." + field.getName() + " = " + field.getName() + ";", null));
+                    "this." + fieldName + " = " + fieldName + ";", null));
             }
 
             return constructor;
@@ -131,19 +133,37 @@ public class FieldInjectionInspection extends AbstractBaseJavaLocalInspectionToo
 
         private void addAutowiredAnnotation(PsiClass containingClass, PsiMethod constructor,
             PsiElementFactory factory) {
-            PsiElement annotation = factory.createAnnotationFromText("@Autowired", null);
-            constructor.add(annotation);
+            this.addAutowiredAnnotation(constructor, factory);
+            this.addAutowiredImport(containingClass, factory);
+        }
 
-            PsiJavaFile containingFile = (PsiJavaFile)containingClass.getContainingFile();
+        private void addAutowiredAnnotation(PsiMethod constructor, PsiElementFactory factory) {
+            PsiElement annotation = factory.createAnnotationFromText("@Autowired", null);
+            PsiModifierList modifierList = constructor.getModifierList();
+            PsiElement firstChild = modifierList.getFirstChild();
+            modifierList.addBefore(annotation, firstChild);
+        }
+
+        private void addAutowiredImport(PsiClass containingClass, PsiElementFactory factory) {
+            PsiFile psiFile = containingClass.getContainingFile();
+            if (!(psiFile instanceof PsiJavaFile containingFile)) {
+                return;
+            }
+
             PsiImportList importList = containingFile.getImportList();
-            assert importList != null;
+            if (importList == null) {
+                return;
+            }
 
             if (this.hasAutowiredImport(importList)) {
                 return;
             }
 
-            PsiStatement importStatement = factory.createStatementFromText("import " + AUTOWIRED + ";", null);
-            importList.add(importStatement);
+            PsiImportStatement psiImportStatement = factory.createImportStatementOnDemand(AUTOWIRED);
+            importList.add(psiImportStatement);
+
+            JavaCodeStyleManager.getInstance(containingClass.getProject())
+                .optimizeImports(containingFile);
         }
 
         private boolean hasAutowiredImport(PsiImportList importList) {
