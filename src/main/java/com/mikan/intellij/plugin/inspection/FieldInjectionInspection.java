@@ -1,6 +1,7 @@
 package com.mikan.intellij.plugin.inspection;
 
 import java.util.List;
+import java.util.Objects;
 
 import com.intellij.codeInspection.AbstractBaseJavaLocalInspectionTool;
 import com.intellij.codeInspection.InspectionManager;
@@ -15,11 +16,18 @@ import com.intellij.psi.JavaPsiFacade;
 import com.intellij.psi.PsiAnnotation;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiCodeBlock;
+import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiElementFactory;
 import com.intellij.psi.PsiField;
+import com.intellij.psi.PsiImportList;
+import com.intellij.psi.PsiImportStatement;
+import com.intellij.psi.PsiJavaFile;
+import com.intellij.psi.PsiKeyword;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiModifier;
 import com.intellij.psi.PsiModifierList;
+import com.intellij.psi.PsiParameterList;
+import com.intellij.psi.PsiStatement;
 import com.intellij.psi.util.PsiTreeUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -32,10 +40,10 @@ import org.jetbrains.annotations.Nullable;
  */
 public class FieldInjectionInspection extends AbstractBaseJavaLocalInspectionTool {
 
-    private static final List<String> ANNOTATIONS = List.of(
-        "org.springframework.beans.factory.annotation.Autowired",
-        "javax.annotation.Resource"
-    );
+    private static final String AUTOWIRED = "org.springframework.beans.factory.annotation.Autowired";
+    private static final String RESOURCE = "javax.annotation.Resource";
+
+    private static final List<String> ANNOTATIONS = List.of(AUTOWIRED, RESOURCE);
 
     private final FieldInjectionQuickFix fieldInjectionQuickFix = new FieldInjectionQuickFix();
 
@@ -83,27 +91,68 @@ public class FieldInjectionInspection extends AbstractBaseJavaLocalInspectionToo
             if (containingClass == null) {
                 return;
             }
-            PsiField[] fields = containingClass.getFields();
 
+            PsiMethod constructor = this.buildConstructor(project, containingClass);
+            containingClass.add(constructor);
+        }
+
+        private @NotNull PsiMethod buildConstructor(@NotNull Project project, PsiClass containingClass) {
             String className = containingClass.getName();
             assert className != null;
 
             PsiElementFactory factory = JavaPsiFacade.getInstance(project).getElementFactory();
             PsiMethod constructor = factory.createConstructor(className);
+            this.addAutowiredAnnotation(containingClass, constructor, factory);
+
+            PsiParameterList parameterList = constructor.getParameterList();
             PsiCodeBlock constructorBody = constructor.getBody();
             assert constructorBody != null;
 
+            PsiField[] fields = containingClass.getFields();
             for (PsiField field : fields) {
                 if (this.isStaticField(field)) {
                     continue;
                 }
-                this.deleteAnnotation(field);
-                constructor.add(factory.createParameter(field.getName(), field.getType()));
+                // 字段删除 @Autowired 或 @Resource 注解
+                this.deleteFiledInjectionAnnotation(field);
+                // 字段添加 private 和 final 修饰符
+                this.addPrivateModifier(field, factory);
+                this.addFinalModifier(field, factory);
+
+                // 添加构造方法参数
+                parameterList.add(factory.createParameter(field.getName(), field.getType()));
+                // 添加构造方法参数赋值
                 constructorBody.add(factory.createStatementFromText(
                     "this." + field.getName() + " = " + field.getName() + ";", null));
             }
 
-            containingClass.add(constructor);
+            return constructor;
+        }
+
+        private void addAutowiredAnnotation(PsiClass containingClass, PsiMethod constructor,
+            PsiElementFactory factory) {
+            PsiElement annotation = factory.createAnnotationFromText("@Autowired", null);
+            constructor.add(annotation);
+
+            PsiJavaFile containingFile = (PsiJavaFile)containingClass.getContainingFile();
+            PsiImportList importList = containingFile.getImportList();
+            assert importList != null;
+
+            if (this.hasAutowiredImport(importList)) {
+                return;
+            }
+
+            PsiStatement importStatement = factory.createStatementFromText("import " + AUTOWIRED + ";", null);
+            importList.add(importStatement);
+        }
+
+        private boolean hasAutowiredImport(PsiImportList importList) {
+            for (PsiImportStatement importStatement : importList.getImportStatements()) {
+                if (AUTOWIRED.equals(importStatement.getQualifiedName())) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private boolean isStaticField(PsiField field) {
@@ -114,7 +163,39 @@ public class FieldInjectionInspection extends AbstractBaseJavaLocalInspectionToo
             return modifierList.hasExplicitModifier(PsiModifier.STATIC);
         }
 
-        private void deleteAnnotation(PsiField field) {
+        private void addPrivateModifier(PsiField field, PsiElementFactory factory) {
+            if (!this.hasVisibleModifier(field)) {
+                Objects.requireNonNull(field.getModifierList()).add(factory.createKeyword(PsiKeyword.PRIVATE));
+            }
+        }
+
+        private boolean hasVisibleModifier(PsiField field) {
+            PsiModifierList modifierList = field.getModifierList();
+            if (modifierList == null) {
+                return true;
+            }
+
+            return modifierList.hasExplicitModifier(PsiModifier.PRIVATE)
+                || modifierList.hasExplicitModifier(PsiModifier.PROTECTED)
+                || modifierList.hasExplicitModifier(PsiModifier.PUBLIC);
+        }
+
+        private void addFinalModifier(PsiField field, PsiElementFactory factory) {
+            if (!this.hasFinalModifier(field)) {
+                Objects.requireNonNull(field.getModifierList()).add(factory.createKeyword(PsiKeyword.FINAL));
+            }
+        }
+
+        private boolean hasFinalModifier(PsiField field) {
+            PsiModifierList modifierList = field.getModifierList();
+            if (modifierList == null) {
+                return true;
+            }
+
+            return modifierList.hasExplicitModifier(PsiModifier.FINAL);
+        }
+
+        private void deleteFiledInjectionAnnotation(PsiField field) {
             PsiAnnotation[] annotations = field.getAnnotations();
             for (PsiAnnotation annotation : annotations) {
                 if (ANNOTATIONS.contains(annotation.getQualifiedName())) {
