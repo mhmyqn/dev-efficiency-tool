@@ -154,6 +154,8 @@ public class CreateJunit5TestWithMockitoIntentionAction extends PsiElementBaseIn
         // 2. 生成 mock 字段
         List<PsiField> generatedFields = this.generateMockFields(elementFactory, srcClass, targetClass, imports);
 
+        this.generateEmptyLineBefore(targetClass, project, targetClass.getRBrace());
+
         // 3. 生成测试目标字段
         PsiField generateTargetField = this.generateTargetField(elementFactory, srcClass, targetClass);
 
