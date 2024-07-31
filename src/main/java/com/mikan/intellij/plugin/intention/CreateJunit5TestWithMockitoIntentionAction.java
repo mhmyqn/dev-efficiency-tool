@@ -30,8 +30,10 @@ import com.intellij.psi.PsiModifier;
 import com.intellij.psi.PsiModifierList;
 import com.intellij.psi.PsiPackage;
 import com.intellij.psi.PsiPackageStatement;
+import com.intellij.psi.PsiParserFacade;
 import com.intellij.psi.PsiStatement;
 import com.intellij.psi.PsiTypes;
+import com.intellij.psi.codeStyle.CodeStyleManager;
 import com.intellij.psi.codeStyle.JavaCodeStyleManager;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.search.GlobalSearchScopesCore;
@@ -90,7 +92,7 @@ public class CreateJunit5TestWithMockitoIntentionAction extends PsiElementBaseIn
         List<String> imports = Lists.newArrayList();
 
         // 3. 生成类的内容
-        PsiClass psiClass = this.generateClass(elementFactory, className, srcClass, imports);
+        PsiClass psiClass = this.generateClass(elementFactory, className, srcClass, project, imports);
         assert psiClass != null;
         targetJavaFile.add(psiClass);
 
@@ -98,6 +100,7 @@ public class CreateJunit5TestWithMockitoIntentionAction extends PsiElementBaseIn
         this.generateImportList(imports, targetJavaFile, project);
 
         JavaCodeStyleManager.getInstance(project).optimizeImports(targetJavaFile);
+        CodeStyleManager.getInstance(project).reformat(targetJavaFile);
     }
 
     private void generatePackageStatement(PsiJavaFile targetJavaFile, PsiJavaFile srcJavaFile) {
@@ -114,7 +117,7 @@ public class CreateJunit5TestWithMockitoIntentionAction extends PsiElementBaseIn
     }
 
     private PsiClass generateClass(PsiElementFactory elementFactory, String className,
-        PsiClass srcClass, List<String> imports) {
+        PsiClass srcClass, Project project, List<String> imports) {
         PsiDirectory targetDirectory = srcClass.getContainingFile().getContainingDirectory();
         final PsiPackage aPackage = JavaDirectoryService.getInstance().getPackage(targetDirectory);
         if (aPackage != null) {
@@ -134,6 +137,9 @@ public class CreateJunit5TestWithMockitoIntentionAction extends PsiElementBaseIn
         // 1. 生成类注解
         this.generateClassAnnotation(elementFactory, targetClass, imports);
 
+        // 添加空行
+        this.generateEmptyLine(targetClass, project);
+
         // 2. 生成 mock 字段
         List<PsiField> generatedFields = this.generateMockFields(elementFactory, srcClass, targetClass, imports);
 
@@ -146,6 +152,9 @@ public class CreateJunit5TestWithMockitoIntentionAction extends PsiElementBaseIn
 
         // 5. 生成测试方法
         this.generateTestMethod(elementFactory, srcClass, targetClass, imports);
+
+        // 添加空行
+        this.generateEmptyLine(targetClass, project);
 
         return targetClass;
     }
@@ -161,6 +170,12 @@ public class CreateJunit5TestWithMockitoIntentionAction extends PsiElementBaseIn
 
         imports.add("org.junit.jupiter.api.extension.ExtendWith");
         imports.add("org.mockito.junit.jupiter.MockitoExtension");
+    }
+
+    private void generateEmptyLine(PsiClass targetClass, Project project) {
+        PsiParserFacade psiParserFacade = PsiParserFacade.getInstance(project);
+        PsiElement whiteSpace = psiParserFacade.createWhiteSpaceFromText("\n\n");
+        targetClass.add(whiteSpace);
     }
 
     private void generateSetUpMethod(PsiElementFactory elementFactory, PsiClass targetClass,
