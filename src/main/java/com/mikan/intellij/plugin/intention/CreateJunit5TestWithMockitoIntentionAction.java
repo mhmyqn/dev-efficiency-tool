@@ -15,6 +15,7 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleUtilCore;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.psi.JavaDirectoryService;
 import com.intellij.psi.JavaPsiFacade;
 import com.intellij.psi.PsiAnnotation;
@@ -33,6 +34,7 @@ import com.intellij.psi.PsiModifier;
 import com.intellij.psi.PsiModifierList;
 import com.intellij.psi.PsiPackage;
 import com.intellij.psi.PsiPackageStatement;
+import com.intellij.psi.PsiParameterList;
 import com.intellij.psi.PsiParserFacade;
 import com.intellij.psi.PsiStatement;
 import com.intellij.psi.PsiTypes;
@@ -45,6 +47,7 @@ import com.intellij.testIntegration.createTest.CreateTestUtils;
 import com.intellij.util.IncorrectOperationException;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * @author mikan
@@ -65,7 +68,15 @@ public class CreateJunit5TestWithMockitoIntentionAction extends PsiElementBaseIn
     @Override
     public boolean isAvailable(@NotNull Project project, Editor editor, @NotNull PsiElement element) {
         PsiClass containingClass = PsiTreeUtil.getParentOfType(element, PsiClass.class);
-        return containingClass != null;
+        if (containingClass == null) {
+            return false;
+        }
+
+        boolean inTestSourceContent = ProjectRootManager.getInstance(project)
+            .getFileIndex()
+            .isInTestSourceContent(containingClass.getContainingFile().getVirtualFile());
+
+        return !inTestSourceContent;
     }
 
     @Override
@@ -211,16 +222,33 @@ public class CreateJunit5TestWithMockitoIntentionAction extends PsiElementBaseIn
         PsiCodeBlock methodBody = setUp.getBody();
         assert methodBody != null;
 
-        String fieldNames = generatedFields.stream()
-            .map(PsiField::getName)
-            .collect(Collectors.joining(", "));
-        PsiStatement statement = elementFactory.createStatementFromText("this." + targetField.getName()
-            + " = new " + srcClass.getName() + "(" + fieldNames + ");", setUp);
-        methodBody.add(statement);
+        PsiMethod constructor = this.getConstructor(srcClass, generatedFields.size());
+        assert constructor != null;
+        if (!this.isPrivateMethod(constructor)) {
+            String fieldNames = generatedFields.stream()
+                .map(PsiField::getName)
+                .collect(Collectors.joining(", "));
 
-        targetClass.add(setUp);
+            PsiStatement statement = elementFactory.createStatementFromText("this." + targetField.getName()
+                + " = new " + srcClass.getName() + "(" + fieldNames + ");", setUp);
+            methodBody.add(statement);
+
+            targetClass.add(setUp);
+        }
 
         imports.add("org.junit.jupiter.api.BeforeEach");
+    }
+
+    private @Nullable PsiMethod getConstructor(PsiClass srcClass, int expectParameterCount) {
+        PsiMethod[] constructors = srcClass.getConstructors();
+        for (PsiMethod constructor : constructors) {
+            PsiParameterList parameterList = constructor.getParameterList();
+            int parametersCount = parameterList.getParametersCount();
+            if (parametersCount == expectParameterCount) {
+                return constructor;
+            }
+        }
+        return null;
     }
 
     private void generateTestMethod(PsiElementFactory elementFactory, PsiClass srcClass,
@@ -313,6 +341,11 @@ public class CreateJunit5TestWithMockitoIntentionAction extends PsiElementBaseIn
         PsiImportList importList = targetJavaFile.getImportList();
         assert importList != null;
         importList.add(extendWithImport);
+    }
+
+    private boolean isPrivateMethod(PsiMethod psiMethod) {
+        PsiModifierList modifierList = psiMethod.getModifierList();
+        return modifierList.hasExplicitModifier(PsiModifier.PRIVATE);
     }
 
 }
