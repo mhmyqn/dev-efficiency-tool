@@ -167,12 +167,15 @@ public class CreateJunit5TestWithMockitoIntentionAction extends PsiElementBaseIn
 
         this.generateEmptyLineBefore(targetClass, project, targetClass.getRBrace());
 
-        // 3. 生成测试目标字段
-        PsiField generateTargetField = this.generateTargetField(elementFactory, srcClass, targetClass);
+        boolean hasAvailableConstructor = this.hasAvailableConstructor(srcClass, generatedFields.size());
+        if (hasAvailableConstructor) {
+            // 3. 生成测试目标字段
+            PsiField generateTargetField = this.generateTargetField(elementFactory, srcClass, targetClass);
 
-        // 4. 生成 setUp 方法
-        this.generateSetUpMethod(elementFactory, targetClass, srcClass, generatedFields,
-            generateTargetField, imports);
+            // 4. 生成 setUp 方法
+            this.generateSetUpMethod(elementFactory, targetClass, srcClass, generatedFields,
+                generateTargetField, imports);
+        }
 
         // 5. 生成测试方法
         this.generateTestMethod(elementFactory, srcClass, targetClass, imports);
@@ -239,24 +242,11 @@ public class CreateJunit5TestWithMockitoIntentionAction extends PsiElementBaseIn
         imports.add("org.junit.jupiter.api.BeforeEach");
     }
 
-    private @Nullable PsiMethod getConstructor(PsiClass srcClass, int expectParameterCount) {
-        PsiMethod[] constructors = srcClass.getConstructors();
-        for (PsiMethod constructor : constructors) {
-            PsiParameterList parameterList = constructor.getParameterList();
-            int parametersCount = parameterList.getParametersCount();
-            if (parametersCount == expectParameterCount) {
-                return constructor;
-            }
-        }
-        return null;
-    }
-
     private void generateTestMethod(PsiElementFactory elementFactory, PsiClass srcClass,
         PsiClass targetClass, List<String> imports) {
         PsiMethod[] methods = srcClass.getMethods();
         List<PsiMethod> testMethods = Arrays.stream(methods)
-            .filter(method -> !method.hasModifierProperty(PsiModifier.STATIC)
-                && !method.hasModifierProperty(PsiModifier.PRIVATE)
+            .filter(method -> !method.hasModifierProperty(PsiModifier.PRIVATE)
                 && !method.isConstructor())
             .map(method -> this.generateTestMethod(elementFactory, method))
             .peek(targetClass::add)
@@ -341,6 +331,27 @@ public class CreateJunit5TestWithMockitoIntentionAction extends PsiElementBaseIn
         PsiImportList importList = targetJavaFile.getImportList();
         assert importList != null;
         importList.add(extendWithImport);
+    }
+
+    private boolean hasAvailableConstructor(PsiClass srcClass, int expectParameterCount) {
+        PsiMethod constructor = this.getConstructor(srcClass, expectParameterCount);
+        if (constructor == null) {
+            return false;
+        }
+
+        return !this.isPrivateMethod(constructor);
+    }
+
+    private @Nullable PsiMethod getConstructor(PsiClass srcClass, int expectParameterCount) {
+        PsiMethod[] constructors = srcClass.getConstructors();
+        for (PsiMethod constructor : constructors) {
+            PsiParameterList parameterList = constructor.getParameterList();
+            int parametersCount = parameterList.getParametersCount();
+            if (parametersCount == expectParameterCount) {
+                return constructor;
+            }
+        }
+        return null;
     }
 
     private boolean isPrivateMethod(PsiMethod psiMethod) {
