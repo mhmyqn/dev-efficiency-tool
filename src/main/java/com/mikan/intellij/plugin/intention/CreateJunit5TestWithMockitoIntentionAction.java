@@ -11,6 +11,7 @@ import com.intellij.codeInsight.intention.PsiElementBaseIntentionAction;
 import com.intellij.codeInspection.util.IntentionFamilyName;
 import com.intellij.codeInspection.util.IntentionName;
 import com.intellij.openapi.command.WriteCommandAction;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleUtilCore;
@@ -54,6 +55,8 @@ import org.jetbrains.annotations.Nullable;
  * @date 2024-07-28 11:50
  */
 public class CreateJunit5TestWithMockitoIntentionAction extends PsiElementBaseIntentionAction {
+
+    private static final Logger LOG = Logger.getInstance(CreateJunit5TestWithMockitoIntentionAction.class);
 
     @Override
     public @NotNull @IntentionName String getText() {
@@ -104,7 +107,17 @@ public class CreateJunit5TestWithMockitoIntentionAction extends PsiElementBaseIn
 
         // 1. 创建文件
         String className = srcClass.getName() + "Test";
-        PsiFile targetFile = targetDirectory.createFile(className + ".java");
+        String fileName = className + ".java";
+        PsiFile expectFile = targetDirectory.findFile(fileName);
+        if (expectFile != null) {
+            LOG.info("junit5 test file " + fileName + " already exists, open it directly.");
+            // 文件已经存在，直接打开文件
+            PsiJavaFile expectJavaFile = (PsiJavaFile)expectFile;
+            CodeInsightUtil.positionCursorAtLBrace(project, expectFile, expectJavaFile.getClasses()[0]);
+            return;
+        }
+
+        PsiFile targetFile = targetDirectory.createFile(fileName);
         PsiJavaFile targetJavaFile = (PsiJavaFile)targetFile;
 
         // 2. 生成 package
